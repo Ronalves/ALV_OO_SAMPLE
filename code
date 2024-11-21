@@ -1,0 +1,219 @@
+**&------------------------------------------------------------------&**
+**                       Projeto Reembolso                            **
+**--------------------------------------------------------------------**
+** Analista  : Aline Rocha Francisco de Assis                         **
+** Autor     : Eduardo Santiago Neto                                  **
+** Descrição : Projeto Reembolso - Log Processamento                  **
+** Data      : 13/10/2023                                             **
+**&------------------------------------------------------------------&**
+
+REPORT  zrfi1104.
+TABLES: ztbfi513e,ztbfi579.
+*======================================================================*
+* GLOBAL TABLES                                                        *
+*======================================================================*
+DATA: gt_513e  TYPE TABLE OF ztbfi513e,
+      gt_579   TYPE TABLE OF ztbfi579.
+
+*======================================================================*
+* ALV                                                                  *
+*======================================================================*
+DATA: gr_table     TYPE REF TO cl_salv_table.
+DATA: gr_functions TYPE REF TO cl_salv_functions.
+DATA: gr_display   TYPE REF TO cl_salv_display_settings.
+DATA: gr_sorts     TYPE REF TO cl_salv_sorts.
+DATA: gr_columns   TYPE REF TO cl_salv_columns_table.
+DATA: gr_column    TYPE REF TO cl_salv_column_table.
+
+************************************************************************
+* SELECTION-SCREEN DECLARATION                                         *
+************************************************************************
+SELECTION-SCREEN BEGIN OF BLOCK a1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS: s_comp FOR ztbfi579-bukrs OBLIGATORY,
+                s_data FOR ztbfi513e-budat,
+                s_req  FOR ztbfi513e-requestnumber,
+                s_user FOR ztbfi513e-userid,
+                s_fil  FOR ztbfi513e-filtersproducts.
+SELECTION-SCREEN END OF BLOCK a1.
+
+*======================================================================*
+* AT-SELECTION-SCREEN                                                  *
+*======================================================================*
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_fil-low.
+
+  PERFORM zf_help_fil USING 'S_FIL-LOW'.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR s_fil-high.
+
+  PERFORM zf_help_fil USING 'S_FIL-HIGH'.
+
+*======================================================================*
+* START-OF-SELECTION                                                   *
+*======================================================================*
+START-OF-SELECTION.
+  PERFORM zf_get_dados.
+
+*======================================================================*
+* END-OF-SELECTION                                                     *
+*======================================================================*
+END-OF-SELECTION.
+  IF NOT gt_513e[] IS INITIAL.
+    PERFORM zf_show_alv.
+  ELSE.
+    MESSAGE 'Dados não encontrados' TYPE 'S' DISPLAY LIKE 'E'.
+  ENDIF.
+*&---------------------------------------------------------------------*
+*&      Form  ZF_GET_DADOS
+*&---------------------------------------------------------------------*
+FORM zf_get_dados .
+  SELECT * FROM ztbfi579
+    INTO TABLE gt_579
+    WHERE bukrs IN s_comp.
+
+  IF sy-subrc IS INITIAL.
+    SELECT * FROM ztbfi513e
+      INTO TABLE gt_513e
+      FOR ALL ENTRIES IN gt_579
+      WHERE companyname          EQ gt_579-empresa AND
+            requestnumber        IN s_req  AND
+            userid               IN s_user AND
+            budat                IN s_data AND
+            filtersproducts      IN s_fil  .
+  ENDIF.
+ENDFORM.                    " ZF_GET_DADOS
+*&---------------------------------------------------------------------*
+*&      Form  ZF_SHOW_ALV
+*&---------------------------------------------------------------------*
+FORM zf_show_alv .
+  DATA: gr_layout TYPE REF TO cl_salv_layout,
+        gr_layout_key TYPE salv_s_layout_key.
+
+  CHECK NOT gt_513e IS INITIAL.
+  cl_salv_table=>factory(
+                  IMPORTING
+                    r_salv_table = gr_table
+                  CHANGING t_table = gt_513e[] ).
+
+  gr_functions = gr_table->get_functions( ).
+  gr_functions->set_all( abap_true ).
+
+  gr_display = gr_table->get_display_settings( ).
+  gr_display->set_striped_pattern( cl_salv_display_settings=>true ).
+  gr_display->set_list_header( 'Log de Processamento' ).
+  gr_display->set_fit_column_to_table_size( 'X' ).
+
+  gr_columns = gr_table->get_columns( ).
+  gr_columns->set_optimize( abap_true ).
+
+
+  TRY.
+      gr_column ?= gr_columns->get_column( 'MANDT' ).
+      gr_column->set_visible( ' ' ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      gr_column ?= gr_columns->get_column( 'EXPENSESTATUS' ).
+      gr_column->set_visible( ' ' ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      gr_column ?= gr_columns->get_column( 'COMPENSACAO' ).
+      gr_column->set_visible( ' ' ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      gr_column ?= gr_columns->get_column( 'ESTORNO' ).
+      gr_column->set_visible( ' ' ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+
+  TRY.
+      gr_column ?= gr_columns->get_column( 'DVANCEPAYMENTSTATUS' ).
+      gr_column->set_visible( ' ' ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      gr_column ?= gr_columns->get_column( 'INITIALDATE' ).
+      gr_column->set_visible( ' ' ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      gr_column ?= gr_columns->get_column( 'FINALDATE' ).
+      gr_column->set_visible( ' ' ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      gr_column ?= gr_columns->get_column( 'ADVANCEPAYMENTSTATUS' ).
+      gr_column->set_visible( ' ' ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+
+* Início - Ralves - 21/11/2024 - REQ 24137.1.
+  TRY.
+      gr_column ?= gr_columns->get_column( 'ZMESSAGE' ).
+      gr_column->set_optimized( ' ' ).
+    CATCH cx_salv_not_found.                            "#EC NO_HANDLER
+  ENDTRY.
+* Fim- Ralves - 21/11/2024 - REQ 24137.1.
+
+  CLEAR: gr_layout.
+  MOVE: sy-repid TO gr_layout_key-report.
+  gr_layout = gr_table->get_layout( ).
+  gr_layout->set_key( gr_layout_key ).
+  gr_layout->set_save_restriction( cl_salv_layout=>restrict_none ).
+  gr_layout->set_default( if_salv_c_bool_sap=>true ).
+
+  gr_table->display( ).
+ENDFORM.                    " ZF_SHOW_ALV
+*&---------------------------------------------------------------------*
+*&      Form  ZF_HELP_FIL
+*&---------------------------------------------------------------------*
+FORM zf_help_fil  USING  s_fil_low.
+
+  CONSTANTS:  cc_retfield    TYPE dfies-fieldname     VALUE 'ZFILTERSPRODUCTS',
+              cc_dynpprog    TYPE sy-repid            VALUE 'ZRFI1104',
+              cc_dynpnr      TYPE sy-dynnr            VALUE '1000',
+              cc_value_org   TYPE ddbool_d            VALUE 'S'.
+
+  TYPES: BEGIN OF ty_match,
+    zfiltersproducts TYPE zfiltersproducts,
+    END OF ty_match.
+
+  DATA lv_cont TYPE i.
+  DATA: lv_dynprofield TYPE help_info-dynprofld.
+  DATA: lt_match TYPE TABLE OF ty_match.
+  FIELD-SYMBOLS: <fs_match> TYPE   ty_match.
+
+  DO 2 TIMES.
+    ADD 1 TO lv_cont.
+    APPEND INITIAL LINE TO lt_match ASSIGNING <fs_match>.
+    IF lv_cont EQ 1.
+      <fs_match>-zfiltersproducts = 'advancedPayment'.
+    ELSE.
+      <fs_match>-zfiltersproducts =  'refund'.
+    ENDIF.
+  ENDDO.
+  lv_dynprofield = s_fil_low.
+
+* Chamar função para match code
+  CALL FUNCTION 'F4IF_INT_TABLE_VALUE_REQUEST'
+    EXPORTING
+      retfield        = cc_retfield
+      dynpprog        = cc_dynpprog
+      dynpnr          = cc_dynpnr
+      dynprofield     = lv_dynprofield
+      value_org       = cc_value_org
+    TABLES
+      value_tab       = lt_match
+    EXCEPTIONS
+      parameter_error = 1
+      no_values_found = 2
+      OTHERS          = 3.
+ENDFORM.                    " ZF_HELP_FIL
